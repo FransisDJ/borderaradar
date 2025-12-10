@@ -1,0 +1,63 @@
+
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Borderadar — Live Map</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    body { margin:0; font-family: system-ui, sans-serif; }
+    #map { height: 70vh; }
+    .list { padding: 8px; max-height: 30vh; overflow:auto; }
+    .item { border-bottom:1px solid #eee; padding:8px 0; }
+    .header { padding:8px; background:#0b1220; color:#fff; display:flex; align-items:center; justify-content:space-between; }
+    .logo { font-weight:700; letter-spacing:1px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">Borderadar — Live Monitor</div>
+    <div>Auto-refresh every 60s</div>
+  </div>
+  <div id="map"></div>
+  <div class="list" id="list"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([13.5,103.5], 7);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
+    let markers = [];
+
+    async function load(){
+      try {
+        const res = await fetch('/.netlify/functions/latest');
+        const json = await res.json();
+        const events = json.events || [];
+        // clear markers
+        markers.forEach(m => map.removeLayer(m));
+        markers = [];
+        document.getElementById('list').innerHTML = '';
+        events.forEach(ev => {
+          const el = document.createElement('div'); el.className='item';
+          el.innerHTML = `<b>${ev.title}</b><br><small>${ev.sources ? ev.sources.join(', ') : ''} — ${new Date(ev.pubDate).toLocaleString()}</small><br><a href="${ev.link}" target="_blank">read</a>`;
+          document.getElementById('list').appendChild(el);
+          if (ev.sector){
+            const m = L.marker([ev.sector.lat, ev.sector.lon]).addTo(map).bindPopup(`<b>${ev.title}</b><br>${ev.sector.name}<br>Severity: ${ev.severity}`);
+            markers.push(m);
+          }
+        });
+        if (markers.length) {
+          const group = L.featureGroup(markers);
+          map.fitBounds(group.getBounds().pad(0.5));
+        }
+      } catch(e){
+        console.error(e);
+      }
+    }
+
+    load();
+    setInterval(load, 60*1000);
+  </script>
+</body>
+</html>
